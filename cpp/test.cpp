@@ -21,7 +21,7 @@ int ReverseInt(int i) {
 
 double ** loadMNISTDataSet(string fileName, int train_N) {
 
-	ifstream file(fileName, ios::binary);
+	ifstream file(fileName.c_str(), ios::binary);
 	if (file.is_open())
 	{
 		int magic_number = 0;
@@ -64,7 +64,7 @@ double ** loadMNISTDataSet(string fileName, int train_N) {
 
 int * loadMNISTLabelSet(string fileName, int train_N) {
 
-	ifstream file(fileName, ios::binary);
+	ifstream file(fileName.c_str(), ios::binary);
 	if (file.is_open())
 	{
 		int magic_number = 0;

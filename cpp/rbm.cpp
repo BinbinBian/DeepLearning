@@ -1,6 +1,8 @@
+#include <cstdlib>
+#include <cstdio>
 #include <iostream>
 #include <math.h>
-#include "RBM.h"
+#include "rbm.h"
 #include "utils.h"
 
 using namespace std;
