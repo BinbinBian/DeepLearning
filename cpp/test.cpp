@@ -21,7 +21,7 @@ int ReverseInt(int i) {
 
 double ** loadMNISTDataSet(string fileName, int train_N) {
 
-	ifstream file("data/mnist/" + fileName, ios::binary);
+	ifstream file(fileName, ios::binary);
 	if (file.is_open())
 	{
 		int magic_number = 0;
@@ -64,7 +64,7 @@ double ** loadMNISTDataSet(string fileName, int train_N) {
 
 int * loadMNISTLabelSet(string fileName, int train_N) {
 
-	ifstream file("data/mnist/" + fileName, ios::binary);
+	ifstream file(fileName, ios::binary);
 	if (file.is_open())
 	{
 		int magic_number = 0;
@@ -116,9 +116,12 @@ void test_MNIST_RBM(){
 	int n_hidden = 500;
 	int training_epcohs = 1000;
 
+	string dataFolder = "../../../../data/mnist/";
+
+
 	// loading MNIST
 	printf("...loading data: \n");
-	double ** trainingData = loadMNISTDataSet("train-images.idx3-ubyte", train_N);
+	double ** trainingData = loadMNISTDataSet(dataFolder + "train-images.idx3-ubyte", train_N);
 
 	// construct RBM
 	printf("...building RBM model: \n");
@@ -157,16 +160,16 @@ void test_MNIST_DBN(){
 	int n_outs = 10;
 	int n_layers = sizeof(hidden_layer_sizes) / sizeof(hidden_layer_sizes[0]);
 
-	
+	string dataFolder = "C:/Users/dykang/git/DeepLearning/data/mnist/";
 
 	// loading MNIST
 	//start = clock();
 	printf("...loading data: %d training data, %d testing data \n", train_N, test_N);
-	double ** trainingData = loadMNISTDataSet("train-images.idx3-ubyte", train_N);
-	int * trainingLabel = loadMNISTLabelSet("train-labels.idx1-ubyte", train_N);
+	double ** trainingData = loadMNISTDataSet(dataFolder + "train-images.idx3-ubyte", train_N);
+	int * trainingLabel = loadMNISTLabelSet(dataFolder + "train-labels.idx1-ubyte", train_N);
 	double ** trainingLabelArray = transformLabelToArray(trainingLabel, n_outs, train_N);
-	double ** testingData = loadMNISTDataSet("t10k-images.idx3-ubyte", test_N);
-	int * testingLabel = loadMNISTLabelSet("t10k-labels.idx1-ubyte", test_N);
+	double ** testingData = loadMNISTDataSet(dataFolder + "t10k-images.idx3-ubyte", test_N);
+	int * testingLabel = loadMNISTLabelSet(dataFolder + "t10k-labels.idx1-ubyte", test_N);
 	double ** testingLabelArray = transformLabelToArray(testingLabel, n_outs, test_N);
 
 	//finish = clock();
