@@ -5,6 +5,8 @@
 #include "rbm.h"
 #include "dbn.h"
 #include <time.h>
+#include <cstring>
+#include <vector>
 
 using namespace std;
 
@@ -109,14 +111,13 @@ double ** transformLabelToArray(int * label, int dim, int num){
 
 clock_t start, finish;
 
-void test_MNIST_RBM(){
+void test_MNIST_RBM(string dataFolder){
 
 	int train_N = 1000;
 	int n_visible = 28 * 28;
 	int n_hidden = 500;
 	int training_epcohs = 1000;
 
-	string dataFolder = "../../../../data/mnist/";
 
 
 	// loading MNIST
@@ -143,7 +144,7 @@ void test_MNIST_RBM(){
 
 }
 
-void test_MNIST_DBN(){
+void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls){
 	srand(0);
 
 	int k = 1;
@@ -152,19 +153,22 @@ void test_MNIST_DBN(){
 	double finetune_lr = 0.1;
 	int finetune_epochs = 100; // 500;
 
-	int train_N = 50000;
-	int test_N = 10000;
-	int hidden_layer_sizes[] = { 500 };
+	int train_N = trainn; //50000;
+	int test_N = testn; //10000;
+	int *hidden_layer_sizes = hls; //{ 500 };
 
 	int n_ins = 28 * 28;
 	int n_outs = 10;
 	int n_layers = sizeof(hidden_layer_sizes) / sizeof(hidden_layer_sizes[0]);
+    printf("Hidden Layers: ");
+    for(int i=0;i<n_layers;i++)printf("%d ",hidden_layer_sizes[i]);
+    printf("\n");
 
-	string dataFolder = "C:/Users/dykang/git/DeepLearning/data/mnist/";
+	//string dataFolder = "C:/Users/dykang/git/DeepLearning/data/mnist/";
 
 	// loading MNIST
 	//start = clock();
-	printf("...loading data: %d training data, %d testing data \n", train_N, test_N);
+	printf("...loading data: %d training data, %d testing data from %s \n", train_N, test_N, dataFolder.c_str());
 	double ** trainingData = loadMNISTDataSet(dataFolder + "train-images.idx3-ubyte", train_N);
 	int * trainingLabel = loadMNISTLabelSet(dataFolder + "train-labels.idx1-ubyte", train_N);
 	double ** trainingLabelArray = transformLabelToArray(trainingLabel, n_outs, train_N);
@@ -203,12 +207,30 @@ void test_MNIST_DBN(){
 }
 
 int main(int argc, char ** argv) {
-	//RBM::test_rbm;
-	//DBN::test_dbn;
-	//test_MNIST_RBM();
-	test_MNIST_DBN();
-
-	system("pause");
-
+    string dataFolder =  "";
+    int train_N = 50000;
+    int test_N = 10000;
+    if (argc != 5){
+        printf("Wrong number of arguments: USAGE: test [datafolder] [NUM_TRAIN] [NUM_TEST] [LAYER_SIZES]");
+        return 0;
+    }else{
+       dataFolder = argv[1];
+       train_N = atoi(argv[2]);
+       test_N = atoi(argv[3]);
+       char *pch;
+       int cnt =0;
+       vector<int> arr;
+       while(true){
+           if(cnt==0) pch = strtok(argv[4], ".");
+           else pch = strtok(NULL, ".");
+           if(pch == NULL) break;
+           cnt++;
+           arr.push_back(atoi(pch));
+       }
+       int *hls = &arr[0];
+	   test_MNIST_DBN(dataFolder, train_N, test_N, hls);
+    }
+	//test_MNIST_RBM(dataFolder);
+	//system("pause");
 	return 0;
 }
