@@ -9,7 +9,8 @@ public:
 	double **W;
 	double *hbias;
 	double *vbias;
-	RBM(int, int, int, double**, double*, double*);
+	int mode;
+	RBM(int, int, int, double**, double*, double*, int );
 	~RBM();
 
 	double contrastive_divergence(double *, double, int);

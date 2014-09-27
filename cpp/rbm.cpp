@@ -8,10 +8,11 @@
 using namespace std;
 
 
-RBM::RBM(int size, int n_v, int n_h, double **w, double *hb, double *vb){
+RBM::RBM(int size, int n_v, int n_h, double **w, double *hb, double *vb, int m){
 	N = size;
 	n_visible = n_v;
 	n_hidden = n_h;
+	mode = m;
 	if (w == NULL){
 		W = new double*[n_hidden];
 		for (int i = 0; i < n_hidden; i++) W[i] = new double[n_visible];
@@ -172,7 +173,7 @@ void test_rbm(){
 	};
 	
 	// contruct RBM
-	RBM rbm(train_N, n_visible, n_hidden, NULL, NULL, NULL);
+	RBM rbm(train_N, n_visible, n_hidden, NULL, NULL, NULL, -1);
 
 	// train
 	for (int epoch = 0; epoch < training_epcohs; epoch++){

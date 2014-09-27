@@ -11,7 +11,7 @@
 using namespace std;
 
 // DBN
-DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l) {
+DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l, int m) {
 	int input_size;
 
 	N = size;
@@ -19,6 +19,7 @@ DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l) {
 	hidden_layer_sizes = hls;
 	n_outs = n_o;
 	n_layers = n_l;
+	mode = m;
 
 	sigmoid_layers = new HiddenLayer*[n_layers];
 	rbm_layers = new RBM*[n_layers];
@@ -33,11 +34,11 @@ DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l) {
 		}
 
 		// construct sigmoid_layer
-		sigmoid_layers[i] = new HiddenLayer(N, input_size, hidden_layer_sizes[i], NULL, NULL);
+		sigmoid_layers[i] = new HiddenLayer(N, input_size, hidden_layer_sizes[i], NULL, NULL, mode);
 
 		// construct rbm_layer
 		rbm_layers[i] = new RBM(N, input_size, hidden_layer_sizes[i], \
-			sigmoid_layers[i]->W, sigmoid_layers[i]->b, NULL);
+			sigmoid_layers[i]->W, sigmoid_layers[i]->b, NULL, mode);
 	}
 
 	// layer for output using LogisticRegression
@@ -253,11 +254,11 @@ void DBN::predict(double **x, int *y, int test_N) {
 
 
 // HiddenLayer
-HiddenLayer::HiddenLayer(int size, int in, int out, double **w, double *bp) {
+HiddenLayer::HiddenLayer(int size, int in, int out, double **w, double *bp, int m) {
 	N = size;
 	n_in = in;
 	n_out = out;
-
+	mode = m;
 	if (w == NULL) {
 		W = new double*[n_out];
 		for (int i = 0; i<n_out; i++) W[i] = new double[n_in];
@@ -434,7 +435,7 @@ void test_dbn() {
 
 
 	// construct DBN
-	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers);
+	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, -1);
 
 	// pretrain
 	dbn.pretrain(train_X, pretrain_lr, k, pretraining_epochs);

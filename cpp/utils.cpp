@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <math.h>
+#include "mkl.h"
 using namespace std;
 
 double uniform(double min, double max) {

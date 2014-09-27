@@ -6,7 +6,8 @@ public:
 	int n_out;
 	double **W;
 	double *b;
-	HiddenLayer(int, int, int, double**, double*);
+	int mode;
+	HiddenLayer(int, int, int, double**, double*, int);
 	~HiddenLayer();
 	double output(double*, double*, double);
 	void sample_h_given_v(double*, double*);
