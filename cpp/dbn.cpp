@@ -11,7 +11,7 @@
 using namespace std;
 
 // DBN
-DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l, int m) {
+DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l, int b, bool mk) {
 	int input_size;
 
 	N = size;
@@ -19,10 +19,18 @@ DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l, int m) {
 	hidden_layer_sizes = hls;
 	n_outs = n_o;
 	n_layers = n_l;
-	mode = m;
-
+	mkl = mk;
 	sigmoid_layers = new HiddenLayer*[n_layers];
 	rbm_layers = new RBM*[n_layers];
+
+
+	if (b == 0){ // full-batch
+		batch = N;
+	}
+	else {
+		batch = b;
+	}
+
 
 	// construct multi-layer
 	for (int i = 0; i<n_layers; i++) {
@@ -34,11 +42,11 @@ DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l, int m) {
 		}
 
 		// construct sigmoid_layer
-		sigmoid_layers[i] = new HiddenLayer(N, input_size, hidden_layer_sizes[i], NULL, NULL, mode);
+		sigmoid_layers[i] = new HiddenLayer(N, input_size, hidden_layer_sizes[i], NULL, NULL, batch);
 
 		// construct rbm_layer
 		rbm_layers[i] = new RBM(N, input_size, hidden_layer_sizes[i], \
-			sigmoid_layers[i]->W, sigmoid_layers[i]->b, NULL, mode);
+			sigmoid_layers[i]->W, sigmoid_layers[i]->b, NULL, batch, mkl);
 	}
 
 	// layer for output using LogisticRegression
@@ -58,32 +66,89 @@ DBN::~DBN() {
 
 
 void DBN::pretrain(double **input, double lr, int k, int epochs) {
+
+
+	int num_train_batch = N / batch;
+
+
+
 	double *layer_input = NULL;
-	int prev_layer_input_size;
+	double *train_X = new double[n_ins];
 	double *prev_layer_input;
 
-	double *train_X = new double[n_ins];
+	int prev_layer_input_size;
+
+
+	double **prev_layer_input_batch;
+	double **layer_input_batch = NULL;
+	double **train_X_batch = new double *[batch];
+
 
 	clock_t start, finish;
-
-
 	for (int i = 0; i<n_layers; i++) {  // layer-wise
 
 		for (int epoch = 0; epoch<epochs; epoch++) {  // training epochs
 
 			start = clock();
 			double error = 0.0;
-			for (int n = 0; n<N; n++) { // input x1...xN
+
+			// input bacth1(x1, x2...), batch2 (...), ...bacthK
+			for (int nb = 0; nb < num_train_batch; nb++){
+				// initial input
+				for (int n = 0; n < batch; n++){
+					train_X_batch[n] = new double[n_ins];
+					for (int m = 0; m<n_ins; m++) 
+						train_X_batch[n][m] = input[nb * batch + n][m];
+				}
+
+				// (last) layer input <= initial input
+				for (int l = 0; l <= i; l++) {
+					if (l == 0) {
+						layer_input_batch = new double *[batch]; //n_ins
+						for (int n = 0; n < batch; n++){
+							layer_input_batch[n] = new double[n_ins];
+							for (int m = 0; m<n_ins; m++)
+								layer_input_batch[n][m] = train_X_batch[n][m];
+						}
+					}
+					else {
+						if (l == 1) prev_layer_input_size = n_ins;
+						else prev_layer_input_size = hidden_layer_sizes[l - 2];
+
+
+						for (int n = 0; n < batch; n++){
+							prev_layer_input_batch[n] = new double[prev_layer_input_size];
+							for (int m = 0; m<prev_layer_input_size; m++)
+								prev_layer_input_batch[n][m] = layer_input_batch[n][m];
+						}
+						delete[] layer_input_batch;
+
+						for (int n = 0; n < batch; n++){
+							layer_input_batch[n] = new double[hidden_layer_sizes[l - 1]];
+						}
+						// TODO :: HiddenLayer output MKL
+						for (int n = 0; n < batch; n++){
+							sigmoid_layers[l - 1]->sample_h_given_v(prev_layer_input_batch[n], layer_input_batch[n]);
+						}
+						delete[] prev_layer_input_batch;
+					}
+				}
+				//error += rbm_layers[i]->contrastive_divergence(layer_input, lr, k);
+				error += rbm_layers[i]->contrastive_divergence(layer_input_batch, lr, k);
+			}
+
+
+			/*
+			// input x1...xN
+			for (int n = 0; n<N; n++) {
 				// initial input
 				for (int m = 0; m<n_ins; m++) train_X[m] = input[n][m];
 
 				// (last) layer input <= initial input
 				for (int l = 0; l <= i; l++) {
-
 					if (l == 0) {
 						layer_input = new double[n_ins];
 						for (int j = 0; j<n_ins; j++) layer_input[j] = train_X[j];
-
 					}
 					else {
 						if (l == 1) prev_layer_input_size = n_ins;
@@ -92,31 +157,27 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 						prev_layer_input = new double[prev_layer_input_size];
 						for (int j = 0; j<prev_layer_input_size; j++) prev_layer_input[j] = layer_input[j];
 						delete[] layer_input;
-
 						layer_input = new double[hidden_layer_sizes[l - 1]];
-
 						sigmoid_layers[l - 1]->sample_h_given_v(prev_layer_input, layer_input);
 						delete[] prev_layer_input;
 					}
 				}
-
-
-
-				error += rbm_layers[i]->contrastive_divergence(layer_input, lr, k);;
+				error += rbm_layers[i]->contrastive_divergence(layer_input, lr, k);
 			}
+			*/
 			finish = clock();
 			
-
 			printf("\tpretraining layer [%d: %d X %d], epoch %d, cost %f, time %.2f \n", i, rbm_layers[i]->n_visible, rbm_layers[i]->n_hidden, epoch, error, (double)(finish - start) / CLOCKS_PER_SEC);
 
 			//sigmoid_layers[i]->W = rbm_layers[i]->W;
 			//sigmoid_layers[i]->b = rbm_layers[i]->hbias;
-
 		}
 	}
 
 	delete[] train_X;
 	delete[] layer_input;
+
+	//TODO delete batch variables
 }
 
 void DBN::finetune(double **input, double **label, double lr, int epochs) {
@@ -309,6 +370,8 @@ void HiddenLayer::sample_h_given_v(double *input, double *sample) {
 
 
 
+
+
 // LogisticRegression
 LogisticRegression::LogisticRegression(int size, int in, int out) {
 	N = size;
@@ -435,7 +498,7 @@ void test_dbn() {
 
 
 	// construct DBN
-	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, -1);
+	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, 1, false);
 
 	// pretrain
 	dbn.pretrain(train_X, pretrain_lr, k, pretraining_epochs);

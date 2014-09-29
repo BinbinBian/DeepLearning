@@ -11,6 +11,8 @@ public:
 	~HiddenLayer();
 	double output(double*, double*, double);
 	void sample_h_given_v(double*, double*);
+	void sample_h_given_v(double**, double**);
+
 };
 //class HiddenLayer {
 //

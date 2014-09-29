@@ -9,9 +9,14 @@ public:
 	double **W;
 	double *hbias;
 	double *vbias;
-	int mode;
-	RBM(int, int, int, double**, double*, double*, int );
+	int batch;
+	bool mkl;
+	RBM(int, int, int, double**, double*, double*, int, bool);
 	~RBM();
+
+	double contrastive_divergence(double **, double, int);
+	void sample_v_given_h(double **, double **, double **);
+	void sample_h_given_v(double **, double **, double **);
 
 	double contrastive_divergence(double *, double, int);
 	void sample_v_given_h(double *, double *, double *);

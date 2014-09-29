@@ -127,7 +127,7 @@ void test_MNIST_RBM(string dataFolder){
 
 	// construct RBM
 	printf("...building RBM model: \n");
-	RBM rbm(train_N, n_visible, n_hidden, NULL, NULL, NULL, -1);
+	RBM rbm(train_N, n_visible, n_hidden, NULL, NULL, NULL, -1, false);
 
 	// train RBM model
 	printf("...training: \n");
@@ -142,19 +142,18 @@ void test_MNIST_RBM(string dataFolder){
 
 }
 
-void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int mode){
+void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batch, bool mkl){
 	srand(0);
 
-	//mode :: 0:single batch, 1:mini-batch, 2:full-batch, 3:full/mkl-batch, 4:pgx
 	int k = 1;
 	double pretrain_lr = 0.6;
-	int pretraining_epochs = 100; // 500;
+	int pretraining_epochs = 10; // 200;
 	double finetune_lr = 0.1;
-	int finetune_epochs = 100; // 500;
+	int finetune_epochs = 10; // 200;
 
-	int train_N = trainn; //50000;
-	int test_N = testn; //10000;
-	int *hidden_layer_sizes = hls; //{ 500 };
+	int train_N = trainn;
+	int test_N = testn;
+	int *hidden_layer_sizes = hls;
 
 	int n_ins = 28 * 28;
 	int n_outs = 10;
@@ -162,9 +161,9 @@ void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int mode
 	printf("Hidden Layers: ");
 	for (int i = 0; i < n_layers; i++)printf("%d ", hidden_layer_sizes[i]);
 	printf("\n");
+	printf("Batch type: %d, MKL: %s\n", batch, (mkl ? "true" : "false"));
 
 	// loading MNIST
-	//start = clock();
 	printf("...loading data: %d training data, %d testing data from %s \n", train_N, test_N, dataFolder.c_str());
 	double ** trainingData = loadMNISTDataSet(dataFolder + "train-images.idx3-ubyte", train_N);
 	int * trainingLabel = loadMNISTLabelSet(dataFolder + "train-labels.idx1-ubyte", train_N);
@@ -172,17 +171,13 @@ void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int mode
 	double ** testingData = loadMNISTDataSet(dataFolder + "t10k-images.idx3-ubyte", test_N);
 	int * testingLabel = loadMNISTLabelSet(dataFolder + "t10k-labels.idx1-ubyte", test_N);
 	double ** testingLabelArray = transformLabelToArray(testingLabel, n_outs, test_N);
-	//finish = clock();
-	//printf("...loading data: %.2f seconds\n", (double)(finish - start) / CLOCKS_PER_SEC);
 
 
 	// construct DBN
-	printf("...building DBN model: \n");
-	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, mode);
-	printf("...building DBN model (done): %.2f seconds\n", (double)(finish - start) / CLOCKS_PER_SEC);
+	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, batch, mkl);
+	printf("...building DBN model (done)\n");
 
 	// pretrain
-	printf("...pre-training DBN model: \n");
 	start = clock();
 	dbn.pretrain(trainingData, pretrain_lr, k, pretraining_epochs);
 	finish = clock();
@@ -190,7 +185,6 @@ void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int mode
 
 
 	// finetune
-	printf("...finetuning DBN model: \n");
 	start = clock();
 	dbn.finetune(trainingData, trainingLabelArray, finetune_lr, finetune_epochs);
 	finish = clock();
@@ -231,78 +225,85 @@ void print_arr(int N, int M, char * name, double* array)
 	printf("\n%s\n", name);
 	for (i = 0; i<N; i++){
 		for (j = 0; j<M; j++) {
-			printf("%g ", *(array +i*M + j));
+			printf("%g ", *(array + i*M + j));
 		}
 		printf("\n");
 	}
 }
 
 
+void test_mkl_example(){
+	int i, j;
+	int N = 2;
+	int K = 4;
+	int M = 3;
+
+	double *a = (double*)malloc(sizeof(double)*N*K);
+	double *b = (double*)malloc(sizeof(double)*K*M);
+	init_arr(N, K, a);
+	init_arr(K, M, b);
+	double *c = (double*)malloc(sizeof(double)*N*M);
+
+	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
+		N, M, K, 1.0f,
+		a, K, b, M,
+		0.0f, c, M);
+
+	print_arr(N, K, "a", a);
+	print_arr(K, M, "b", b);
+	print_arr(N, M, "c", c);
+
+	free(a);
+	free(b);
+	free(c);
+}
+
+
+
 int main(int argc, char ** argv) {
 	string dataFolder = "";
 	int train_N = 50000;
 	int test_N = 10000;
-	int mode = -1;
+	int batch = 0;
+	bool mkl = false;
 
-	argc = 6;
+	argc = 7;
 	argv = new char*[argc];
 	argv[1] = "C:/Users/dykang/git/DeepLearning/data/mnist/";
-	argv[2] = "1000";
-	argv[3] = "1000";
+	argv[2] = "5000";
+	argv[3] = "5000";
 	argv[4] = "100";
-	argv[5] = "0"; // 0:single batch, 1:mini-batch, 2:full-batch, 3:full/mkl-batch, 4:pgx
+	argv[5] = "50"; // 0:full batch, 1:single-batch, k: mini-batch size
+	argv[6] = "false"; // -1:not use, 1: use mkl
 
-	if (argc != 6){
+	if (argc != 7){
 		printf("Wrong number of arguments: USAGE: test [datafolder] [NUM_TRAIN] [NUM_TEST] [LAYER_SIZES] [MODE]");
 		return 0;
 	}
-	else{
-		dataFolder = argv[1]; //argv[1];  
-		train_N = atoi(argv[2]);
-		test_N = atoi(argv[3]);
-		mode = atoi(argv[5]);
-		char *pch;
-		int cnt = 0;
-		vector<int> arr;
-		while (true){
-			if (cnt == 0) pch = strtok(argv[4], ".");
-			else pch = strtok(NULL, ".");
-			if (pch == NULL) break;
-			cnt++;
-			arr.push_back(atoi(pch));
-		}
-		int *hls = &arr[0];
-		//test_MNIST_DBN(dataFolder, train_N, test_N, hls, mode);
 
-
-		int i, j;
-		int N = 2;
-		int K = 4;
-		int M = 3;
-
-		double *a = (double*)malloc(sizeof(double)*N*K);
-		double *b = (double*)malloc(sizeof(double)*K*M);
-		init_arr(N,K, a);
-		init_arr(K,M, b);
-		double *c = (double*)malloc(sizeof(double)*N*M);
-		//init_arr(N, M, c);
-
-		cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-			N, M, K, 1.0f,
-			a, K, b, M,
-			0.0f, c, M);
-
-		print_arr(N, K, "a", a);
-		print_arr(K, M, "b", b);
-		print_arr(N, M, "c", c);
-
-		free(a);
-		free(b);
-		free(c);
-
-
+	dataFolder = argv[1]; //argv[1];  
+	train_N = atoi(argv[2]);
+	test_N = atoi(argv[3]);
+	batch = atoi(argv[5]);
+	mkl = (strcmp(argv[6], "true") == 0) ? true : false;
+	char *pch;
+	int cnt = 0;
+	vector<int> arr;
+	while (true){
+		if (cnt == 0) pch = strtok(argv[4], ".");
+		else pch = strtok(NULL, ".");
+		if (pch == NULL) break;
+		cnt++;
+		arr.push_back(atoi(pch));
 	}
+	int *hls = &arr[0];
+	test_MNIST_DBN(dataFolder, train_N, test_N, hls, batch, mkl);
+
+
+	//test_mkl_example();
 	//test_MNIST_RBM(dataFolder);
-	//system("pause");
+	system("pause");
+
+
 	return 0;
 }
