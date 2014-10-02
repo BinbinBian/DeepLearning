@@ -16,3 +16,4 @@ What's added:
  - dataset: mnist, cifar, imagenet
  - optimization: dropout, low-rank approximization
  - parallelism: GPUs, CPUs (multi-threading), cluster, Sparc, data/feature parallelism 
+ - (c++): mkl support, multi-threading, sparsification
