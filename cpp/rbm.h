@@ -6,17 +6,17 @@ public:
 	int N;
 	int n_visible;
 	int n_hidden;
-	double **W;
+	double *W; // **W
 	double *hbias;
 	double *vbias;
 	int batch;
 	bool mkl;
-	RBM(int, int, int, double**, double*, double*, int, bool);
+	RBM(int, int, int, double*, double*, double*, int, bool);
 	~RBM();
 
-	double contrastive_divergence(double **, double, int);
-	void sample_v_given_h(double **, double **, double **);
-	void sample_h_given_v(double **, double **, double **);
+	double contrastive_divergence_batch(double *, double, int);
+	//void sample_v_given_h(double *, double *, double *);
+	//void sample_h_given_v(double *, double *, double *);
 
 	double contrastive_divergence(double *, double, int);
 	void sample_v_given_h(double *, double *, double *);

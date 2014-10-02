@@ -8,6 +8,7 @@
 #include <cstring>
 #include <vector>
 #include "mkl.h"
+#include "utils.h"
 
 using namespace std;
 
@@ -142,12 +143,12 @@ void test_MNIST_RBM(string dataFolder){
 
 }
 
-void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batch, bool mkl){
+void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batch, bool mkl, bool threading){
 	srand(0);
 
 	int k = 1;
-	double pretrain_lr = 0.6;
-	int pretraining_epochs = 10; // 200;
+	double pretrain_lr = 0.6; //0.6
+	int pretraining_epochs = 10; // 10 200;
 	double finetune_lr = 0.1;
 	int finetune_epochs = 10; // 200;
 
@@ -160,8 +161,7 @@ void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batc
 	int n_layers = sizeof(hidden_layer_sizes) / sizeof(hidden_layer_sizes[0]);
 	printf("Hidden Layers: ");
 	for (int i = 0; i < n_layers; i++)printf("%d ", hidden_layer_sizes[i]);
-	printf("\n");
-	printf("Batch type: %d, MKL: %s\n", batch, (mkl ? "true" : "false"));
+	printf(", Batch type: %d, MKL: %s\n", batch, (mkl ? "true" : "false"));
 
 	// loading MNIST
 	printf("...loading data: %d training data, %d testing data from %s \n", train_N, test_N, dataFolder.c_str());
@@ -174,7 +174,7 @@ void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batc
 
 
 	// construct DBN
-	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, batch, mkl);
+	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, batch, mkl, threading);
 	printf("...building DBN model (done)\n");
 
 	// pretrain
@@ -197,65 +197,48 @@ void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batc
 }
 
 
-//DGEMM way. The PREFERED way, especially for large matrices
-void Dgemm_multiply(double* a, double*  b, double*  c, int N)
-{
-
-	double alpha = 1.0, beta = 0.;
-	int incx = 1;
-	int incy = N;
-	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, N, N, N, alpha, b, N, a, N, beta, c, N);
-}
-
-//initialize array with random data
-void init_arr(int N, int M, double* a)
-{
-	int i, j;
-	for (i = 0; i< N; i++) {
-		for (j = 0; j< M; j++) {
-			a[i*M + j] = (i + j + 1) % 10; //keep all entries less than 10. pleasing to the eye!
-		}
-	}
-}
-
-//print array to std out
-void print_arr(int N, int M, char * name, double* array)
-{
-	int i, j;
-	printf("\n%s\n", name);
-	for (i = 0; i<N; i++){
-		for (j = 0; j<M; j++) {
-			printf("%g ", *(array + i*M + j));
-		}
-		printf("\n");
-	}
-}
-
-
 void test_mkl_example(){
 	int i, j;
 	int N = 2;
 	int K = 4;
 	int M = 3;
 
+	// from single pointer 2-d array
 	double *a = (double*)malloc(sizeof(double)*N*K);
-	double *b = (double*)malloc(sizeof(double)*K*M);
+	double *b = (double*)malloc(sizeof(double)*M*K);
 	init_arr(N, K, a);
-	init_arr(K, M, b);
+	init_arr(M, K, b);
 	double *c = (double*)malloc(sizeof(double)*N*M);
+	for (int i = 0; i < N; i++){
+		for (int j = 0; j < M; j++){
+			c[i * M + j] = 1.0;
+		}
+	}
+	mkl_matrix_multiplication(N, K, M, a, b, c, false, true, 0.0);
+	print_arr(N, K, a);
+	print_arr(M, K, b);
+	print_arr(N, M, c);
 
-	cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans,
-		N, M, K, 1.0f,
-		a, K, b, M,
-		0.0f, c, M);
 
-	print_arr(N, K, "a", a);
-	print_arr(K, M, "b", b);
-	print_arr(N, M, "c", c);
+	// second round: [N * M] x [M * K] = [N * K]
+	
+	double *d = (double *)malloc(sizeof(double) * M *K);
+	double *e = (double *)malloc(sizeof(double) * N *K);
 
-	free(a);
-	free(b);
-	free(c);
+	init_arr(M, K, d);
+	print_arr(M, K, d);
+
+	mkl_matrix_multiplication(N, M, K, c, d, e, false, false, 0.0);
+	print_arr(N, K, e);
+
+	//free(a);
+	//free(b);
+	//free(c);
+	//free(d);
+	//free(e);
+
+
+
 }
 
 
@@ -266,26 +249,32 @@ int main(int argc, char ** argv) {
 	int test_N = 10000;
 	int batch = 0;
 	bool mkl = false;
+	bool threading = false;
 
-	argc = 7;
+	argc = 8;
 	argv = new char*[argc];
 	argv[1] = "C:/Users/dykang/git/DeepLearning/data/mnist/";
 	argv[2] = "5000";
 	argv[3] = "5000";
 	argv[4] = "100";
-	argv[5] = "50"; // 0:full batch, 1:single-batch, k: mini-batch size
-	argv[6] = "false"; // -1:not use, 1: use mkl
+	argv[5] = "50"; // 0:full batch, 1<=:mini-batch
+	argv[6] = "true"; // math kernel library [true/false]
+	argv[7] = "false"; // treading [true/false]
 
-	if (argc != 7){
+	if (argc != 8){
 		printf("Wrong number of arguments: USAGE: test [datafolder] [NUM_TRAIN] [NUM_TEST] [LAYER_SIZES] [MODE]");
 		return 0;
 	}
+
+	//test_mkl_example();
 
 	dataFolder = argv[1]; //argv[1];  
 	train_N = atoi(argv[2]);
 	test_N = atoi(argv[3]);
 	batch = atoi(argv[5]);
 	mkl = (strcmp(argv[6], "true") == 0) ? true : false;
+	threading = (strcmp(argv[7], "true") == 0) ? true : false;
+
 	char *pch;
 	int cnt = 0;
 	vector<int> arr;
@@ -297,10 +286,9 @@ int main(int argc, char ** argv) {
 		arr.push_back(atoi(pch));
 	}
 	int *hls = &arr[0];
-	test_MNIST_DBN(dataFolder, train_N, test_N, hls, batch, mkl);
+	test_MNIST_DBN(dataFolder, train_N, test_N, hls, batch, mkl, threading);
 
 
-	//test_mkl_example();
 	//test_MNIST_RBM(dataFolder);
 	system("pause");
 

@@ -4,29 +4,39 @@
 #include <math.h>
 #include "rbm.h"
 #include "utils.h"
+#include "mkl.h"
 
 using namespace std;
 
 
-RBM::RBM(int size, int n_v, int n_h, double **w, double *hb, double *vb, int b, bool mk){
+RBM::RBM(int size, int n_v, int n_h, double *w, double *hb, double *vb, int b, bool mk){
 	N = size;
 	n_visible = n_v;
 	n_hidden = n_h;
 	batch = b;
 	mkl = mk;
 	if (w == NULL){
-		W = new double*[n_hidden];
-		for (int i = 0; i < n_hidden; i++) W[i] = new double[n_visible];
-		double a = 1.0 / n_visible;
+		//W = new double*[n_hidden];
+		//for (int i = 0; i < n_hidden; i++) W[i] = new double[n_visible];
+		//double a = 1.0 / n_visible;
+		//for (int i = 0; i < n_hidden; i++){
+		//	for (int j = 0; j < n_visible; j++){
+		//		W[i][j] = uniform(-a, a);
+		//	}
+		//}
+		W = (double *)malloc(sizeof(double) * n_hidden * n_visible);
+		double a = 1.0 / n_visible * n_hidden;
+
 		for (int i = 0; i < n_hidden; i++){
 			for (int j = 0; j < n_visible; j++){
-				W[i][j] = uniform(-a, a);
+				W[i*n_hidden + j] = uniform(-a, a);
 			}
 		}
 	}
 	else{
 		W = w;
 	}
+
 
 	if (hb == NULL){
 		hbias = new double[n_hidden];
@@ -52,30 +62,18 @@ RBM::~RBM(){
 
 
 
-// mini-batch
-double RBM::contrastive_divergence(double **input, double lr, int k){
+// mini-batch + mkl + threading
+double RBM::contrastive_divergence_batch(double *input, double lr, int k){
 
-
-	double **h0_samples_batch = new double *[batch];
-	double **h0_mean_batch = new double *[batch];
-	double **v1_samples_batch = new double *[batch];
-	double **v1_mean_batch = new double *[batch];
-	double **h1_samples_batch = new double *[batch];
-	double **h1_mean_batch = new double *[batch];
-	for (int i = 0; i < batch; i++){
-		h0_samples_batch[i] = new double[n_hidden];
-		h0_mean_batch[i] = new double[n_hidden];
-		v1_samples_batch[i] = new double[n_visible];
-		v1_mean_batch[i] = new double[n_visible];
-		h1_samples_batch[i] = new double[n_hidden];
-		h1_mean_batch[i] = new double[n_hidden];
-	}
-
-
+	double *h0_samples_batch = (double *)malloc(sizeof(double) * batch * n_hidden);
+	double *h0_mean_batch = (double *)malloc(sizeof(double) * batch * n_hidden);
+	double *v1_samples_batch = (double *)malloc(sizeof(double) * batch * n_visible);
+	double *v1_mean_batch = (double *)malloc(sizeof(double) * batch * n_visible);
+	double *h1_samples_batch = (double *)malloc(sizeof(double) * batch * n_hidden);
+	double *h1_mean_batch = (double *)malloc(sizeof(double) * batch * n_hidden);
 
 	/* CD-k: input (v0) -> h0 -> v1 -> h1  */
 	sample_h_given_v(input, h0_mean_batch, h0_samples_batch);
-
 	for (int step = 0; step < k; step++){
 		if (step == 0){
 			sample_v_given_h(h0_samples_batch, v1_mean_batch, v1_samples_batch);
@@ -89,24 +87,47 @@ double RBM::contrastive_divergence(double **input, double lr, int k){
 
 	/* Gradient Update and error */
 	double error = 0.0;
-	for (int n = 0; n < batch; n++){
-		for (int i = 0; i < n_hidden; i++){
-			for (int j = 0; j < n_visible; j++){
-				W[i][j] += lr * (h0_mean_batch[n][i] * input[n][j] - h1_mean_batch[n][i] * v1_samples_batch[n][j]) / N;
+	if (mkl){
+
+
+		// lr / N * (h0_mean_batch[batch][n_hidden] x input[batch][n_visible] - h1_mean_batch[batch][n_hidden] x v1_samples_batch[batch][n_visible]) = W[n_hidden][n_visible]
+
+
+
+		//for (int i = 0; i < n_hidden; i++){
+		//	for (int j = 0; j < n_visible; j++){
+		//	}
+		//}
+		//mkl_matrix_multiplication(batch, n_visible, n_hidden, v, W, h_mean, false, true, 0.0);
+		////h[batch][n_hidden] *  W[n_hidden][n_visible] + vbias[n_batch][n_visible] = v_mean[batch][n_visible]
+		//mkl_matrix_multiplication(batch, n_hidden, n_visible, h, W, v_mean, false, false, 0.0);
+	}
+	else{
+		for (int n = 0; n < batch; n++){
+			for (int i = 0; i < n_hidden; i++){
+				for (int j = 0; j < n_visible; j++){
+					W[i*n_visible + j] += lr * (h0_mean_batch[n * n_hidden + i] * input[n * n_visible + j]
+						- h1_mean_batch[n * n_hidden + i] * v1_samples_batch[n * n_visible + j]) / N;
+				}
+				hbias[i] += lr * (h0_samples_batch[n * n_hidden + i] - h1_mean_batch[n * n_hidden + i]) / N;
 			}
-			hbias[i] += lr * (h0_samples_batch[n][i] - h1_mean_batch[n][i]) / N;
-		}
-		for (int i = 0; i < n_visible; i++){
-			double gvbias = input[n][i] - v1_samples_batch[n][i];
-			vbias[i] += lr * (gvbias) / N;
-			error += gvbias * gvbias;
+			for (int i = 0; i < n_visible; i++){
+				double gvbias = input[n * n_visible + i] - v1_samples_batch[n * n_visible + i];
+				vbias[i] += lr * (gvbias) / N;
+				error += gvbias * gvbias;
+			}
 		}
 	}
 
-	for (int i = 0; i < batch; i++){
-		delete[] h0_samples_batch[i], h0_mean_batch[i], v1_samples_batch[i], v1_mean_batch[i], h1_samples_batch[i], h1_mean_batch[i];
-	}
-	delete[] h0_samples_batch, h0_mean_batch, v1_samples_batch, v1_mean_batch, h1_samples_batch, h1_mean_batch;
+
+	/* delete */
+	free(h1_mean_batch);
+	free(h0_samples_batch);
+	free(h0_mean_batch);
+	free(v1_samples_batch);
+	free(v1_mean_batch);
+	free(h1_samples_batch);
+
 	return sqrt(error / N);
 }
 
@@ -136,7 +157,7 @@ double RBM::contrastive_divergence(double *input, double lr, int k){
 	/* Gradient Update and error */
 	for (int i = 0; i < n_hidden; i++){
 		for (int j = 0; j < n_visible; j++){
-			W[i][j] += lr * (h0_mean[i] * input[j] - h1_mean[i] * v1_samples[j]) / N;
+			W[i*n_visible + j] += lr * (h0_mean[i] * input[j] - h1_mean[i] * v1_samples[j]) / N;
 		}
 		hbias[i] += lr * (h0_samples[i] - h1_mean[i]) / N;
 	}
@@ -158,67 +179,93 @@ double RBM::contrastive_divergence(double *input, double lr, int k){
 }
 
 //mini-batch
-void RBM::sample_h_given_v(double **v, double **h_mean, double **h_samples){
+void RBM::sample_h_given_v(double *v, double *h_mean, double *h_samples){
+	if (mkl){
 
-	for (int n = 0; n < batch; n++){
+
+		mkl_matrix_multiplication(batch, n_visible, n_hidden, v, W, h_mean, false, true, 0.0);
+
+		for (int n = 0; n < batch; n++){
+			for (int i = 0; i < n_hidden; i++){
+				h_mean[n * n_hidden + i] = sigmoid(h_mean[n * n_hidden + i] + hbias[i]);
+				h_samples[n * n_hidden + i] = binomial(1, h_mean[n * n_hidden + i]);
+			}
+		}
+	}
+	else{
 		for (int i = 0; i < n_hidden; i++){
 			/* propup */
 			double pre_sigmoid_activation = 0.0;
 			for (int j = 0; j < n_visible; j++){
-				pre_sigmoid_activation += W[i][j] * v[n][j];
+				pre_sigmoid_activation += W[i* n_visible + j] * v[j];
 			}
 			pre_sigmoid_activation += hbias[i];
-			h_mean[n][i] = sigmoid(pre_sigmoid_activation);
-			h_samples[n][i] = binomial(1, h_mean[n][i]);
+			h_mean[i] = sigmoid(pre_sigmoid_activation);
+			printf("%g ", h_mean[i]);
+
+			h_samples[i] = binomial(1, h_mean[i]);
 		}
+		printf("\n");
+
 	}
 }
-//mini-batch
-void RBM::sample_v_given_h(double **h, double **v_mean, double **v_samples){
-	for (int n = 0; n < batch; n++){
 
+
+//mini-batch
+void RBM::sample_v_given_h(double *h, double *v_mean, double *v_samples){
+	if (mkl){
+		//h[batch][n_hidden] *  W[n_hidden][n_visible] + vbias[n_batch][n_visible] = v_mean[batch][n_visible]
+		mkl_matrix_multiplication(batch, n_hidden, n_visible, h, W, v_mean, false, false, 0.0);
+		for (int n = 0; n < batch; n++){
+			for (int i = 0; i < n_visible; i++){
+				v_mean[n * n_visible + i] = sigmoid(v_mean[n * n_visible + i] + vbias[i]);
+				v_samples[n * n_visible + i] = binomial(1, v_mean[n * n_visible + i]);
+			}
+		}
+	}
+	else{
 		for (int i = 0; i < n_visible; i++){
 			/* propdown */
 			double pre_sigmoid_activiation = 0.0;
 			for (int j = 0; j < n_hidden; j++){
-				pre_sigmoid_activiation += W[j][i] * h[n][j];
+				pre_sigmoid_activiation += W[j * n_visible + i] * h[j];
 			}
 			pre_sigmoid_activiation += vbias[i];
-			v_mean[n][i] = sigmoid(pre_sigmoid_activiation);
-			v_samples[n][i] = binomial(1, v_mean[n][i]);
+			v_mean[i] = sigmoid(pre_sigmoid_activiation);
+			v_samples[i] = binomial(1, v_mean[i]);
 		}
 	}
 }
 
 
-//single-batch
-void RBM::sample_h_given_v(double *v, double *h_mean, double *h_samples){
-	for (int i = 0; i < n_hidden; i++){
-		/* propup */
-		double pre_sigmoid_activation = 0.0;
-		for (int j = 0; j < n_visible; j++){
-			pre_sigmoid_activation += W[i][j] * v[j];
-		}
-		pre_sigmoid_activation += hbias[i];
-		h_mean[i] = sigmoid(pre_sigmoid_activation);
-		h_samples[i] = binomial(1, h_mean[i]);
-	}
-}
-
-//single-batch
-void RBM::sample_v_given_h(double *h, double *v_mean, double *v_samples){
-	for (int i = 0; i < n_visible; i++){
-		/* propdown */
-		double pre_sigmoid_activiation = 0.0;
-		for (int j = 0; j < n_hidden; j++){
-			pre_sigmoid_activiation += W[j][i] * h[j];
-		}
-		pre_sigmoid_activiation += vbias[i];
-		v_mean[i] = sigmoid(pre_sigmoid_activiation);
-		v_samples[i] = binomial(1, v_mean[i]);
-	}
-}
-
+////single-batch
+//void RBM::sample_h_given_v(double *v, double *h_mean, double *h_samples){
+//	for (int i = 0; i < n_hidden; i++){
+//		/* propup */
+//		double pre_sigmoid_activation = 0.0;
+//		for (int j = 0; j < n_visible; j++){
+//			pre_sigmoid_activation += W[i][j] * v[j];
+//		}
+//		pre_sigmoid_activation += hbias[i];
+//		h_mean[i] = sigmoid(pre_sigmoid_activation);
+//		h_samples[i] = binomial(1, h_mean[i]);
+//	}
+//}
+//
+////single-batch
+//void RBM::sample_v_given_h(double *h, double *v_mean, double *v_samples){
+//	for (int i = 0; i < n_visible; i++){
+//		/* propdown */
+//		double pre_sigmoid_activiation = 0.0;
+//		for (int j = 0; j < n_hidden; j++){
+//			pre_sigmoid_activiation += W[j][i] * h[j];
+//		}
+//		pre_sigmoid_activiation += vbias[i];
+//		v_mean[i] = sigmoid(pre_sigmoid_activiation);
+//		v_samples[i] = binomial(1, v_mean[i]);
+//	}
+//}
+//
 
 
 void RBM::reconstruct(double *v, double *reconstructed_v){
@@ -228,7 +275,7 @@ void RBM::reconstruct(double *v, double *reconstructed_v){
 		/* propup*/
 		double pre_sigmoid_activation = 0.0;
 		for (int j = 0; j < n_visible; j++){
-			pre_sigmoid_activation += W[i][j] * v[j];
+			pre_sigmoid_activation += W[i*n_hidden + j] * v[j];
 		}
 		pre_sigmoid_activation += hbias[i];
 		h[i] = sigmoid(pre_sigmoid_activation);
@@ -238,7 +285,7 @@ void RBM::reconstruct(double *v, double *reconstructed_v){
 		double pre_sigmoid_activation = 0.0;
 		/* propdown */
 		for (int j = 0; j < n_hidden; j++){
-			pre_sigmoid_activation += W[j][i] * h[j];
+			pre_sigmoid_activation += W[i*n_hidden + j] * h[j];
 		}
 		pre_sigmoid_activation += vbias[i];
 		reconstructed_v[i] = sigmoid(pre_sigmoid_activation);

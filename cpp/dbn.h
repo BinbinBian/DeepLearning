@@ -15,10 +15,11 @@ public:
 	int n_layers;
 	int batch;
 	bool mkl;
+	bool threading;
 	HiddenLayer **sigmoid_layers;
 	RBM **rbm_layers;
 	LogisticRegression *log_layer;
-	DBN(int, int, int*, int, int, int, bool);
+	DBN(int, int, int*, int, int, int, bool, bool);
 	~DBN();
 	void pretrain(double**, double, int, int);
 	void finetune(double**, double**, double, int);
