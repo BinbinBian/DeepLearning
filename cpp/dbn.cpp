@@ -7,12 +7,14 @@
 #include <math.h>
 #include "dbn.h"
 #include "utils.h"
+#include <thread>
+#include <mutex>
 #include <vector>
 
 using namespace std;
 
 // DBN
-DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l, int b, bool mk, bool th) {
+DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l, int b, bool mk, bool th, int n_th) {
 	int input_size;
 
 	N = size;
@@ -22,6 +24,8 @@ DBN::DBN(int size, int n_i, int *hls, int n_o, int n_l, int b, bool mk, bool th)
 	n_layers = n_l;
 	mkl = mk;
 	threading = th;
+	n_threading = n_th;
+
 	sigmoid_layers = new HiddenLayer*[n_layers];
 	rbm_layers = new RBM*[n_layers];
 
@@ -67,37 +71,99 @@ DBN::~DBN() {
 }
 
 
+
+
+
 void DBN::pretrain(double **input, double lr, int k, int epochs) {
 
 
 	int num_train_batch = N / batch;
-
-
-
+	
 	double *layer_input = NULL;
-	double *train_X = new double[n_ins];
 	double *prev_layer_input;
-
+	double *train_X = NULL;
 	int prev_layer_input_size;
 
 
 	clock_t start, finish;
+	bool locking = false;
 	for (int i = 0; i<n_layers; i++) {  // layer-wise
 		for (int epoch = 0; epoch<epochs; epoch++) {  // training epochs
 
 			start = clock();
 			double error = 0.0;
 
-			if (mkl){
-				double **train_X_batch = new double *[batch];
+			if (threading){
+				mutex mtx_lock;
+				//vector<thread::id> thread_id_vector;
+				//int num_train_batch_per_thread = num_train_batch / n_threading;
 
+				for (int nt = 0; nt < n_threading; nt++){
+					thread th = thread([&](){
+						// input bacth1_1(x1, x2...), batch2_2 (...), ...bacthK_th
+						for (int nb = 0; nb < num_train_batch; nb++){
+
+							if (locking) mtx_lock.lock();
+							if ( (nb % n_threading) == nt){
+								//cout << "\tThread[" << nt << "-" << th.get_id() << "], Batch[" << nb << "]\n";
+
+								train_X = (double *)malloc(sizeof(double) * batch * n_ins);
+
+								// initial input
+								for (int n = 0; n < batch; n++){
+									for (int m = 0; m < n_ins; m++){
+										train_X[n * n_ins + m] = input[nb * batch + n][m]; //*(*(input + nb * batch + n) + m);
+									}
+								}
+								// (last) layer input <= initial input
+								for (int l = 0; l <= i; l++) {
+									if (l == 0) {
+										layer_input = (double *)malloc(sizeof(double) * batch * n_ins);
+										for (int n = 0; n < batch; n++){
+											for (int m = 0; m < n_ins; m++)
+												layer_input[n * n_ins + m] = train_X[n * n_ins + m];
+										}
+									}
+									else {
+										if (l == 1) prev_layer_input_size = n_ins;
+										else prev_layer_input_size = hidden_layer_sizes[l - 2];
+
+										prev_layer_input = (double *)malloc(sizeof(double) * batch * prev_layer_input_size);
+										for (int n = 0; n < batch; n++){
+											for (int m = 0; m<prev_layer_input_size; m++)
+												prev_layer_input[n * prev_layer_input_size + m] = layer_input[n * prev_layer_input_size + m];
+
+										}
+										delete[] layer_input;
+										layer_input = (double *)malloc(sizeof(double) * batch * hidden_layer_sizes[l - 1]);
+										sigmoid_layers[l - 1]->sample_h_given_v(prev_layer_input, layer_input, batch);
+
+										delete[] prev_layer_input;
+									}
+								}
+								error += rbm_layers[i]->contrastive_divergence_batch(layer_input, lr, k);
+								//printf("\t\t[batch-%d] cost %f, time \n", nb, error);
+
+								delete[] train_X;
+
+							}
+							if (locking) mtx_lock.unlock();
+						}
+						//auto it = thread_id_vector.begin();
+						//thread_id_vector.insert(it, th.get_id());
+					});
+					th.join();
+				}
+			}
+			else{
+
+				train_X = (double *)malloc(sizeof(double) * batch * n_ins);
 				// input bacth1(x1, x2...), batch2 (...), ...bacthK
 				for (int nb = 0; nb < num_train_batch; nb++){
 					// initial input
 					for (int n = 0; n < batch; n++){
-						train_X_batch[n] = new double[n_ins];
 						for (int m = 0; m < n_ins; m++){
-							train_X_batch[n][m] = input[nb * batch + n][m]; //*(*(input + nb * batch + n) + m);
+							train_X[n * n_ins + m] = input[nb * batch + n][m]; //*(*(input + nb * batch + n) + m);
 						}
 					}
 					// (last) layer input <= initial input
@@ -106,7 +172,7 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 							layer_input = (double *)malloc(sizeof(double) * batch * n_ins);
 							for (int n = 0; n < batch; n++){
 								for (int m = 0; m < n_ins; m++)
-									layer_input[n * n_ins + m] = train_X_batch[n][m];
+									layer_input[n * n_ins + m] = train_X[n * n_ins + m];
 							}
 						}
 						else {
@@ -117,7 +183,7 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 							for (int n = 0; n < batch; n++){
 								for (int m = 0; m<prev_layer_input_size; m++)
 									prev_layer_input[n * prev_layer_input_size + m] = layer_input[n * prev_layer_input_size + m];
-							
+
 							}
 							delete[] layer_input;
 							layer_input = (double *)malloc(sizeof(double) * batch * hidden_layer_sizes[l - 1]);
@@ -130,9 +196,13 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 					//printf("\t\t[batch-%d] cost %f, time \n", nb, error);
 				}
 
-			}
 
+
+			/*
+			if (mkl){
+			}
 			else{
+				double *train_X = (double *)malloc(sizeof(double) * 1 * n_ins);
 				// input x1...xN
 				for (int n = 0; n<N; n++) {
 					// initial input
@@ -158,20 +228,17 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 					}
 					error += rbm_layers[i]->contrastive_divergence(layer_input, lr, k);
 				}
+				*/
+
+				delete[] train_X;
 			}
 			
 			finish = clock();
 			printf("\tpretraining layer [%d: %d X %d], epoch %d, cost %f, time %.2f \n", i, rbm_layers[i]->n_visible, rbm_layers[i]->n_hidden, epoch, error, (double)(finish - start) / CLOCKS_PER_SEC);
-
 		}
 	}
 
-	delete[] train_X;
 	delete[] layer_input;
-
-
-
-	//TODO delete batch variables
 }
 
 void DBN::finetune(double **input, double **label, double lr, int epochs) {
@@ -508,7 +575,7 @@ void test_dbn() {
 
 
 	// construct DBN
-	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, 1, false, false);
+	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, 1, false, false, 1);
 
 	// pretrain
 	dbn.pretrain(train_X, pretrain_lr, k, pretraining_epochs);

@@ -10,6 +10,8 @@
 #include "mkl.h"
 #include "utils.h"
 
+#include <thread>
+
 using namespace std;
 
 
@@ -143,7 +145,7 @@ void test_MNIST_RBM(string dataFolder){
 
 }
 
-void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batch, bool mkl, bool threading){
+void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batch, bool mkl, bool threading, int threading_N){
 	srand(0);
 
 	int k = 1;
@@ -161,7 +163,7 @@ void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batc
 	int n_layers = sizeof(hidden_layer_sizes) / sizeof(hidden_layer_sizes[0]);
 	printf("Hidden Layers: ");
 	for (int i = 0; i < n_layers; i++)printf("%d ", hidden_layer_sizes[i]);
-	printf(", Batch type: %d, MKL: %s\n", batch, (mkl ? "true" : "false"));
+	printf(", Batch type: %d, MKL: %s, Threading: %s (%d)\n", batch, (mkl ? "true" : "false"), (threading ? "true" : "false"), threading_N);
 
 	// loading MNIST
 	printf("...loading data: %d training data, %d testing data from %s \n", train_N, test_N, dataFolder.c_str());
@@ -174,7 +176,7 @@ void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batc
 
 
 	// construct DBN
-	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, batch, mkl, threading);
+	DBN dbn(train_N, n_ins, hidden_layer_sizes, n_outs, n_layers, batch, mkl, threading, threading_N);
 	printf("...building DBN model (done)\n");
 
 	// pretrain
@@ -193,6 +195,63 @@ void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batc
 	// predict
 	printf("...predicting DBN model: \n");
 	dbn.predict(testingData, testingLabel, test_N);
+
+}
+
+void foo(int x)
+{
+	cout << x << endl;
+}
+
+void bar(int x)
+{
+	cout << x << endl;
+}
+
+
+void test_multithreading_example(){
+
+	thread first(foo, 1);     // spawn new thread that calls foo()
+	thread second(bar, 0);  // spawn new thread that calls bar(0)
+
+	cout << "main, foo and bar now execute concurrently...\n";
+
+	// synchronize threads:
+	first.join();                // pauses until first finishes
+	second.join();               // pauses until second finishes
+
+	std::cout << "foo and bar completed.\n";
+
+	std::thread Thread1([]()
+	{
+		for (int i = 0; i < 5; ++i)
+		{
+			std::cout << "Thread Num : " << i << std::endl;
+		}
+	});
+	Thread1.join();
+
+
+	std::thread Thread2 = std::thread([]()
+	{
+		for (int i = 10; i < 15; ++i)
+		{
+			std::cout << "Thread Num : " << i << std::endl;
+		}
+	});
+	Thread2.join();
+
+
+	std::thread Thread3 = std::thread([](int nParam)
+	{
+		for (int i = 20; i < 25; ++i)
+		{
+			std::cout << "Thread Parameter : " << nParam << std::endl;
+		}
+	}, 4);
+	Thread3.join();
+
+	cout << "threading done " << endl;
 
 }
 
@@ -231,11 +290,11 @@ void test_mkl_example(){
 	mkl_matrix_multiplication(N, M, K, c, d, e, false, false, 0.0);
 	print_arr(N, K, e);
 
-	//free(a);
-	//free(b);
-	//free(c);
-	//free(d);
-	//free(e);
+	free(a);
+	free(b);
+	free(c);
+	free(d);
+	free(e);
 
 
 
@@ -250,23 +309,27 @@ int main(int argc, char ** argv) {
 	int batch = 0;
 	bool mkl = false;
 	bool threading = false;
+	int threading_N = 1;
 
-	argc = 8;
+	argc = 9;
 	argv = new char*[argc];
 	argv[1] = "C:/Users/dykang/git/DeepLearning/data/mnist/";
-	argv[2] = "5000";
-	argv[3] = "5000";
+	argv[2] = "1000";
+	argv[3] = "1000";
 	argv[4] = "100";
 	argv[5] = "50"; // 0:full batch, 1<=:mini-batch
 	argv[6] = "true"; // math kernel library [true/false]
-	argv[7] = "false"; // treading [true/false]
+	argv[7] = "true"; // treading [true/false]
+	argv[8] = "2";
 
-	if (argc != 8){
+	if (argc != 9){
 		printf("Wrong number of arguments: USAGE: test [datafolder] [NUM_TRAIN] [NUM_TEST] [LAYER_SIZES] [MODE]");
 		return 0;
 	}
 
+	//test_MNIST_RBM(dataFolder);
 	//test_mkl_example();
+	//test_multithreading_example();
 
 	dataFolder = argv[1]; //argv[1];  
 	train_N = atoi(argv[2]);
@@ -274,6 +337,7 @@ int main(int argc, char ** argv) {
 	batch = atoi(argv[5]);
 	mkl = (strcmp(argv[6], "true") == 0) ? true : false;
 	threading = (strcmp(argv[7], "true") == 0) ? true : false;
+	threading_N = atoi(argv[8]);
 
 	char *pch;
 	int cnt = 0;
@@ -286,11 +350,11 @@ int main(int argc, char ** argv) {
 		arr.push_back(atoi(pch));
 	}
 	int *hls = &arr[0];
-	test_MNIST_DBN(dataFolder, train_N, test_N, hls, batch, mkl, threading);
+	test_MNIST_DBN(dataFolder, train_N, test_N, hls, batch, mkl, threading, threading_N);
 
 
-	//test_MNIST_RBM(dataFolder);
-	system("pause");
+	
+	//system("pause");
 
 
 	return 0;

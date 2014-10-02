@@ -102,7 +102,7 @@ double RBM::contrastive_divergence_batch(double *input, double lr, int k){
 		////h[batch][n_hidden] *  W[n_hidden][n_visible] + vbias[n_batch][n_visible] = v_mean[batch][n_visible]
 		//mkl_matrix_multiplication(batch, n_hidden, n_visible, h, W, v_mean, false, false, 0.0);
 	}
-	else{
+	//else{
 		for (int n = 0; n < batch; n++){
 			for (int i = 0; i < n_hidden; i++){
 				for (int j = 0; j < n_visible; j++){
@@ -117,7 +117,7 @@ double RBM::contrastive_divergence_batch(double *input, double lr, int k){
 				error += gvbias * gvbias;
 			}
 		}
-	}
+	//}
 
 
 	/* delete */
