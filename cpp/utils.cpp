@@ -1,4 +1,5 @@
 #include <cstdlib>
+//#include <stdlib>
 #include <iostream>
 #include <math.h>
 #include "mkl.h"
@@ -76,12 +77,12 @@ void mkl_matrix_multiplication(int n, int k, int m, double* a, double*  b, doubl
 	//int N_AllocatedBuffers;
 
 	//copy
-	double *aa = (double*)malloc(sizeof(double)*n*k);
-	double *bb = (double*)malloc(sizeof(double)*k*m);
-	double *cc = (double*)malloc(sizeof(double)*n*m);
-	copy_arrfrom1to2(n, k, a, aa);
-	copy_arrfrom1to2(k, m, b, bb);
-	copy_arrfrom1to2(n, m, c, cc);
+	//double *aa = (double*)malloc(sizeof(double)*n*k);
+	//double *bb = (double*)malloc(sizeof(double)*k*m);
+	//double *cc = (double*)malloc(sizeof(double)*n*m);
+	//copy_arrfrom1to2(n, k, a, aa);
+	//copy_arrfrom1to2(k, m, b, bb);
+	//copy_arrfrom1to2(n, m, c, cc);
 
 	//print_arr(n, k,a);
 	//print_arr(m, k, b);
@@ -95,26 +96,26 @@ void mkl_matrix_multiplication(int n, int k, int m, double* a, double*  b, doubl
 
 	double alpha = 1.0, beta = bt;
 
-	//cblas_dgemm(CblasRowMajor, 
-	//	(transA) ? CblasTrans : CblasNoTrans,
-	//	(transB) ? CblasTrans : CblasNoTrans,
-	//	n, m, k, alpha,
-	//	a, (transA) ? n : k, b, (transB) ? k : m,
-	//	beta, c, m);
-	//print_arr(n, m,  c);
-
-	cblas_dgemm(CblasRowMajor,
+	cblas_dgemm(CblasRowMajor, 
 		(transA) ? CblasTrans : CblasNoTrans,
 		(transB) ? CblasTrans : CblasNoTrans,
 		n, m, k, alpha,
-		aa, (transA) ? n : k, bb, (transB) ? k : m,
-		beta, cc, m);
+		a, (transA) ? n : k, b, (transB) ? k : m,
+		beta, c, m);
+	//print_arr(n, m,  c);
+
+    //cblas_dgemm(CblasRowMajor,
+//		(transA) ? CblasTrans : CblasNoTrans,
+//		(transB) ? CblasTrans : CblasNoTrans,
+//		n, m, k, alpha,
+//		aa, (transA) ? n : k, bb, (transB) ? k : m,
+//		beta, cc, m);
 	
 
-	copy_arrfrom1to2(n, m, cc, c);
-	free(aa);
-	free(bb);
-	free(cc);
+	//copy_arrfrom1to2(n, m, cc, c);
+	//free(aa);
+	//free(bb);
+	//free(cc);
 
 
 	//AllocatedBytes = mkl_mem_stat(&N_AllocatedBuffers);

@@ -145,24 +145,25 @@ void test_MNIST_RBM(string dataFolder){
 
 }
 
-void test_MNIST_DBN(string dataFolder, int trainn, int testn, int *hls, int batch, bool mkl, bool threading, int threading_N){
+void test_MNIST_DBN(string dataFolder, int trainn, int testn, vector<int> hls, int batch, bool mkl, bool threading, int threading_N){
 	srand(0);
 
 	int k = 1;
 	double pretrain_lr = 0.6; //0.6
-	int pretraining_epochs = 10; // 10 200;
+	int pretraining_epochs = 100; // 10 200;
 	double finetune_lr = 0.1;
-	int finetune_epochs = 10; // 200;
+	int finetune_epochs = 100; // 200;
 
 	int train_N = trainn;
 	int test_N = testn;
-	int *hidden_layer_sizes = hls;
+
+	int *hidden_layer_sizes = &hls[0];
+    int n_layers = hls.size();
 
 	int n_ins = 28 * 28;
 	int n_outs = 10;
-	int n_layers = sizeof(hidden_layer_sizes) / sizeof(hidden_layer_sizes[0]);
 	printf("Hidden Layers: ");
-	for (int i = 0; i < n_layers; i++)printf("%d ", hidden_layer_sizes[i]);
+	for (int i = 0; i < n_layers; i++)printf("%d ", *(hidden_layer_sizes + i));
 	printf(", Batch type: %d, MKL: %s, Threading: %s (%d)\n", batch, (mkl ? "true" : "false"), (threading ? "true" : "false"), threading_N);
 
 	// loading MNIST
@@ -311,6 +312,7 @@ int main(int argc, char ** argv) {
 	bool threading = false;
 	int threading_N = 1;
 
+    /*
 	argc = 9;
 	argv = new char*[argc];
 	argv[1] = "C:/Users/dykang/git/DeepLearning/data/mnist/";
@@ -321,8 +323,9 @@ int main(int argc, char ** argv) {
 	argv[6] = "true"; // math kernel library [true/false]
 	argv[7] = "true"; // treading [true/false]
 	argv[8] = "2";
-
-	if (argc != 9){
+    */
+	
+    if (argc != 9){
 		printf("Wrong number of arguments: USAGE: test [datafolder] [NUM_TRAIN] [NUM_TEST] [LAYER_SIZES] [MODE]");
 		return 0;
 	}
@@ -339,21 +342,20 @@ int main(int argc, char ** argv) {
 	threading = (strcmp(argv[7], "true") == 0) ? true : false;
 	threading_N = atoi(argv[8]);
 
-	char *pch;
+
+
+    char *pch;
 	int cnt = 0;
 	vector<int> arr;
 	while (true){
 		if (cnt == 0) pch = strtok(argv[4], ".");
 		else pch = strtok(NULL, ".");
-		if (pch == NULL) break;
+        if (pch == NULL) break;
 		cnt++;
 		arr.push_back(atoi(pch));
 	}
-	int *hls = &arr[0];
-	test_MNIST_DBN(dataFolder, train_N, test_N, hls, batch, mkl, threading, threading_N);
-
-
 	
+	test_MNIST_DBN(dataFolder, train_N, test_N, arr, batch, mkl, threading, threading_N);
 	//system("pause");
 
 

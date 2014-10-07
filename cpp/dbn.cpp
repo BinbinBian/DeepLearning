@@ -95,8 +95,7 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 
 			if (threading){
 				mutex mtx_lock;
-				//vector<thread::id> thread_id_vector;
-				//int num_train_batch_per_thread = num_train_batch / n_threading;
+				train_X = (double *)malloc(sizeof(double) * batch * n_ins);
 
 				for (int nt = 0; nt < n_threading; nt++){
 					thread th = thread([&](){
@@ -107,7 +106,6 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 							if ( (nb % n_threading) == nt){
 								//cout << "\tThread[" << nt << "-" << th.get_id() << "], Batch[" << nb << "]\n";
 
-								train_X = (double *)malloc(sizeof(double) * batch * n_ins);
 
 								// initial input
 								for (int n = 0; n < batch; n++){
@@ -142,9 +140,8 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 									}
 								}
 								error += rbm_layers[i]->contrastive_divergence_batch(layer_input, lr, k);
-								//printf("\t\t[batch-%d] cost %f, time \n", nb, error);
+								printf("\t\t[batch-%d] cost %f, time \n", nb, error);
 
-								delete[] train_X;
 
 							}
 							if (locking) mtx_lock.unlock();
@@ -154,6 +151,8 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 					});
 					th.join();
 				}
+
+				delete[] train_X;
 			}
 			else{
 
@@ -195,40 +194,6 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 					error += rbm_layers[i]->contrastive_divergence_batch(layer_input, lr, k);
 					//printf("\t\t[batch-%d] cost %f, time \n", nb, error);
 				}
-
-
-
-			/*
-			if (mkl){
-			}
-			else{
-				double *train_X = (double *)malloc(sizeof(double) * 1 * n_ins);
-				// input x1...xN
-				for (int n = 0; n<N; n++) {
-					// initial input
-					for (int m = 0; m<n_ins; m++) train_X[m] = input[n][m];
-
-					// (last) layer input <= initial input
-					for (int l = 0; l <= i; l++) {
-						if (l == 0) {
-							layer_input = new double[n_ins];
-							for (int j = 0; j<n_ins; j++) layer_input[j] = train_X[j];
-						}
-						else {
-							if (l == 1) prev_layer_input_size = n_ins;
-							else prev_layer_input_size = hidden_layer_sizes[l - 2];
-
-							prev_layer_input = new double[prev_layer_input_size];
-							for (int j = 0; j<prev_layer_input_size; j++) prev_layer_input[j] = layer_input[j];
-							delete[] layer_input;
-							layer_input = new double[hidden_layer_sizes[l - 1]];
-							sigmoid_layers[l - 1]->sample_h_given_v(prev_layer_input, layer_input);
-							delete[] prev_layer_input;
-						}
-					}
-					error += rbm_layers[i]->contrastive_divergence(layer_input, lr, k);
-				}
-				*/
 
 				delete[] train_X;
 			}

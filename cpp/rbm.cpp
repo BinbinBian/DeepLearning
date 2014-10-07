@@ -201,11 +201,11 @@ void RBM::sample_h_given_v(double *v, double *h_mean, double *h_samples){
 			}
 			pre_sigmoid_activation += hbias[i];
 			h_mean[i] = sigmoid(pre_sigmoid_activation);
-			printf("%g ", h_mean[i]);
+			//printf("%g ", h_mean[i]);
 
 			h_samples[i] = binomial(1, h_mean[i]);
 		}
-		printf("\n");
+		//printf("\n");
 
 	}
 }
