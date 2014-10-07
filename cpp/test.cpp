@@ -150,9 +150,9 @@ void test_MNIST_DBN(string dataFolder, int trainn, int testn, vector<int> hls, i
 
 	int k = 1;
 	double pretrain_lr = 0.6; //0.6
-	int pretraining_epochs = 100; // 10 200;
+	int pretraining_epochs = 10; // 10 200;
 	double finetune_lr = 0.1;
-	int finetune_epochs = 100; // 200;
+	int finetune_epochs = 10; // 200;
 
 	int train_N = trainn;
 	int test_N = testn;

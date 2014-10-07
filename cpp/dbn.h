@@ -7,7 +7,7 @@
 
 class DBN {
 
-public: 
+public:
 	int N;
 	int n_ins;
 	int *hidden_layer_sizes;
@@ -22,6 +22,8 @@ public:
 	LogisticRegression *log_layer;
 	DBN(int, int, int*, int, int, int, bool, bool, int);
 	~DBN();
+
+    	//void pretrain_batch_tread(double **, double, int, int, int, int, int, int);
 	void pretrain(double**, double, int, int);
 	void finetune(double**, double**, double, int);
 	void predict(double**, int*, int);

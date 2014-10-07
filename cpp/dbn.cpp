@@ -72,13 +72,81 @@ DBN::~DBN() {
 
 
 
+/*
+void DBN::pretrain_batch_tread(double **input, double lr, int k, int i, int num_train_batch, int batch, int n_threading, int nt){
 
+    double error = 0.0;
+
+
+    mutex mtx_lock;
+	double *layer_input = NULL;
+	double *prev_layer_input;
+	double *train_X = NULL;
+	int prev_layer_input_size;
+
+
+	bool locking = true;
+
+	if (locking) mtx_lock.lock();
+
+    // input bacth1_1(x1, x2...), batch2_2 (...), ...bacthK_th
+	for (int nb = 0; nb < num_train_batch; nb++){
+
+		train_X = (double *)malloc(sizeof(double) * batch * n_ins);
+		if ( (nb % n_threading) == nt){
+            cout << "\tThread[" << nt << "], Batch[" << nb << "]\n";
+
+            // initial input
+            for (int n = 0; n < batch; n++){
+                for (int m = 0; m < n_ins; m++){
+                    train_X[n * n_ins + m] = input[nb * batch + n][m]; //*(*(input + nb * batch + n) + m);
+                }
+            }
+            // (last) layer input <= initial input
+            for (int l = 0; l <= i; l++) {
+                if (l == 0) {
+                    layer_input = (double *)malloc(sizeof(double) * batch * n_ins);
+                    for (int n = 0; n < batch; n++){
+                        for (int m = 0; m < n_ins; m++)
+                            layer_input[n * n_ins + m] = train_X[n * n_ins + m];
+                    }
+                }
+                else {
+                    if (l == 1) prev_layer_input_size = n_ins;
+                    else prev_layer_input_size = hidden_layer_sizes[l - 2];
+
+                    prev_layer_input = (double *)malloc(sizeof(double) * batch * prev_layer_input_size);
+                    for (int n = 0; n < batch; n++){
+                        for (int m = 0; m<prev_layer_input_size; m++)
+                            prev_layer_input[n * prev_layer_input_size + m] = layer_input[n * prev_layer_input_size + m];
+
+                    }
+                    delete[] layer_input;
+                    layer_input = (double *)malloc(sizeof(double) * batch * hidden_layer_sizes[l - 1]);
+                    sigmoid_layers[l - 1]->sample_h_given_v(prev_layer_input, layer_input, batch);
+
+                    delete[] prev_layer_input;
+                }
+            }
+            error += rbm_layers[i]->contrastive_divergence_batch(layer_input, lr, k);
+            //printf("\t\t[thread-%d][batch-%d] cost %f, time \n", nt, nb, error);
+		}
+	    delete[] train_X;
+    }
+
+    if (locking) mtx_lock.unlock();
+}
+*/
+
+void temp(){
+    cout << "asdf" <<endl;
+}
 
 void DBN::pretrain(double **input, double lr, int k, int epochs) {
 
 
 	int num_train_batch = N / batch;
-	
+
 	double *layer_input = NULL;
 	double *prev_layer_input;
 	double *train_X = NULL;
@@ -86,7 +154,6 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 
 
 	clock_t start, finish;
-	bool locking = false;
 	for (int i = 0; i<n_layers; i++) {  // layer-wise
 		for (int epoch = 0; epoch<epochs; epoch++) {  // training epochs
 
@@ -94,64 +161,84 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 			double error = 0.0;
 
 			if (threading){
+
 				mutex mtx_lock;
-				train_X = (double *)malloc(sizeof(double) * batch * n_ins);
+				bool locking = true;
+
+                vector<thread> threads;
 
 				for (int nt = 0; nt < n_threading; nt++){
-					thread th = thread([&](){
+					//thread th = 
+                    //threads.emplace_back(
+                    thread th =thread([&](){
 						// input bacth1_1(x1, x2...), batch2_2 (...), ...bacthK_th
 						for (int nb = 0; nb < num_train_batch; nb++){
-
-							if (locking) mtx_lock.lock();
 							if ( (nb % n_threading) == nt){
-								//cout << "\tThread[" << nt << "-" << th.get_id() << "], Batch[" << nb << "]\n";
-
+								cout << "\tThread[" << nt << "], Batch[" << nb << "]\n";
+				                double *train_X_batch = (double *)malloc(sizeof(double) * batch * n_ins);
+                                
+	                            int prev_layer_input_size_batch;
+	                            double *layer_input_batch = NULL;
+	                            double *prev_layer_input_batch;
 
 								// initial input
 								for (int n = 0; n < batch; n++){
 									for (int m = 0; m < n_ins; m++){
-										train_X[n * n_ins + m] = input[nb * batch + n][m]; //*(*(input + nb * batch + n) + m);
+										train_X_batch[n * n_ins + m] = input[nb * batch + n][m]; //*(*(input + nb * batch + n) + m);
 									}
 								}
+
 								// (last) layer input <= initial input
 								for (int l = 0; l <= i; l++) {
 									if (l == 0) {
-										layer_input = (double *)malloc(sizeof(double) * batch * n_ins);
+										layer_input_batch = (double *)malloc(sizeof(double) * batch * n_ins);
 										for (int n = 0; n < batch; n++){
 											for (int m = 0; m < n_ins; m++)
-												layer_input[n * n_ins + m] = train_X[n * n_ins + m];
+												layer_input_batch[n * n_ins + m] = train_X_batch[n * n_ins + m];
 										}
 									}
-									else {
-										if (l == 1) prev_layer_input_size = n_ins;
-										else prev_layer_input_size = hidden_layer_sizes[l - 2];
 
-										prev_layer_input = (double *)malloc(sizeof(double) * batch * prev_layer_input_size);
+									else {
+										if (l == 1) prev_layer_input_size_batch = n_ins;
+										else prev_layer_input_size_batch = hidden_layer_sizes[l - 2];
+
+										prev_layer_input_batch = (double *)malloc(sizeof(double) * batch * prev_layer_input_size_batch);
 										for (int n = 0; n < batch; n++){
-											for (int m = 0; m<prev_layer_input_size; m++)
-												prev_layer_input[n * prev_layer_input_size + m] = layer_input[n * prev_layer_input_size + m];
+											for (int m = 0; m<prev_layer_input_size_batch; m++)
+												prev_layer_input_batch[n * prev_layer_input_size_batch + m] = layer_input_batch[n * prev_layer_input_size_batch + m];
 
 										}
-										delete[] layer_input;
-										layer_input = (double *)malloc(sizeof(double) * batch * hidden_layer_sizes[l - 1]);
+										delete[] layer_input_batch;
+										layer_input_batch = (double *)malloc(sizeof(double) * batch * hidden_layer_sizes[l - 1]);
 										sigmoid_layers[l - 1]->sample_h_given_v(prev_layer_input, layer_input, batch);
 
-										delete[] prev_layer_input;
+										delete[] prev_layer_input_batch;
 									}
 								}
-								error += rbm_layers[i]->contrastive_divergence_batch(layer_input, lr, k);
-								printf("\t\t[batch-%d] cost %f, time \n", nb, error);
+
+                                delete [] layer_input_batch;
+                                delete [] train_X_batch;
+
+							    //if (locking) mtx_lock.lock();
+								//error += rbm_layers[i]->contrastive_divergence_batch(layer_input, lr, k);
+								//printf("\t\t[batch-%d] cost %f, time \n", nb, error);
 
 
+							    //if (locking) mtx_lock.unlock();
 							}
-							if (locking) mtx_lock.unlock();
 						}
 						//auto it = thread_id_vector.begin();
 						//thread_id_vector.insert(it, th.get_id());
 					});
+                    
+                    //threads.push_back(th);
 					th.join();
-				}
 
+				}
+                for( auto & thread: threads){
+                    //thread.join();
+                    //cnt++;
+                }
 				delete[] train_X;
 			}
 			else{
@@ -197,7 +284,7 @@ void DBN::pretrain(double **input, double lr, int k, int epochs) {
 
 				delete[] train_X;
 			}
-			
+
 			finish = clock();
 			printf("\tpretraining layer [%d: %d X %d], epoch %d, cost %f, time %.2f \n", i, rbm_layers[i]->n_visible, rbm_layers[i]->n_hidden, epoch, error, (double)(finish - start) / CLOCKS_PER_SEC);
 		}
@@ -245,7 +332,7 @@ void DBN::finetune(double **input, double **label, double lr, int epochs) {
 			}
 			log_layer->train(layer_input, train_Y, lr);
 
-		
+
 		}
 
 		finish = clock();
@@ -499,10 +586,10 @@ void test_dbn() {
 	srand(0);
 
 	double pretrain_lr = 0.6;
-	int pretraining_epochs = 100;
+	int pretraining_epochs = 10;
 	int k = 1;
 	double finetune_lr = 0.6;
-	int finetune_epochs = 100;
+	int finetune_epochs = 10;
 
 	int train_N = 6;
 	int test_N = 3;
